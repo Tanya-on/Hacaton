@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Рисуем вместе — ТОП ХАКАТОН</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+
+  <header class="site-header">
+    <div class="container header__inner">
+      <a href="index.html" class="logo">
+        <span class="logo__mark">T</span>
+        <span class="logo__text">ТОП ХАКАТОН</span>
+      </a>
+      <nav class="main-nav">
+        <a href="index.html#about">О хакатоне</a>
+        <a href="index.html#schedule">Расписание</a>
+        <a href="index.html#partners">Партнёры</a>
+        <a href="index.html#roles">Роли</a>
+        <a href="whiteboard.html" class="active">🎨 Рисуем вместе</a>
+      </nav>
+      <div class="header__actions">
+        <a href="index.html" class="btn btn--outline">На главную</a>
+      </div>
+      <button class="burger" aria-label="Меню"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main class="whiteboard-page">
+    <div class="container">
+      <span class="badge badge--cyan fade-in" style="display: block; text-align: center; margin: 0 auto 16px;">ИНТЕРАКТИВ</span>
+      <h1 class="section-title fade-in" style="margin-bottom: 16px;">Рисуем вместе</h1>
+      <p class="whiteboard-desc fade-in">Интерактивная доска для совместного творчества — рисуй, делись идеями и видь, как творят другие в реальном времени</p>
+
+      <div class="online-users">
+        <span>👥 Количество людей, посетивших интерактивную доску: <span id="usersCount">1</span></span>
+      </div>
+
+      <div class="whiteboard-container fade-in">
+        <canvas id="whiteboardCanvas" width="1200" height="600"></canvas>
+      </div>
+
+      <div class="whiteboard-toolbar fade-in" id="toolbar">
+        <div class="tool-group">
+          <span class="tool-label">Цвет</span>
+          <div class="color-picker">
+            <button class="color-btn active" data-color="#22D3EE" style="background:#22D3EE" aria-label="Cyan"></button>
+            <button class="color-btn" data-color="#F97316" style="background:#F97316" aria-label="Orange"></button>
+            <button class="color-btn" data-color="#A855F7" style="background:#A855F7" aria-label="Purple"></button>
+            <button class="color-btn" data-color="#22C55E" style="background:#22C55E" aria-label="Green"></button>
+            <button class="color-btn" data-color="#EF4444" style="background:#EF4444" aria-label="Red"></button>
+            <button class="color-btn" data-color="#FFFFFF" style="background:#FFFFFF" aria-label="White"></button>
+          </div>
+        </div>
+        <div class="tool-group">
+          <span class="tool-label">Размер</span>
+          <div class="size-picker">
+            <button class="size-btn" data-size="2">2px</button>
+            <button class="size-btn active" data-size="5">5px</button>
+            <button class="size-btn" data-size="10">10px</button>
+          </div>
+        </div>
+        <div class="tool-group">
+          <span class="tool-label">Инструменты</span>
+          <button class="tool-btn" id="eraserBtn">🧹 Ластик</button>
+          <button class="tool-btn" id="clearBtn">🗑️ Очистить</button>
+          <button class="tool-btn" id="saveBtn">💾 Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__bottom">
+        <span class="copyright">© 2026 ТОП ХАКАТОН. Все права защищены.</span>
+        <span class="footer-brand">ИРИТ-РтФ УрФУ</span>
+      </div>
+    </div>
+  </footer>
+
+  <button class="back-to-top" id="backToTop" aria-label="Наверх">↑</button>
+  <script src="script.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAOuETPln8F7FarPgpFwXuXSJYla1_vmUg",
+      authDomain: "hacaton-aaf2a.firebaseapp.com",
+      projectId: "hacaton-aaf2a",
+      storageBucket: "hacaton-aaf2a.firebasestorage.app",
+      messagingSenderId: "400807286392",
+      appId: "1:400807286392:web:08a81095ee9387db853f8d",
+      measurementId: "G-WBX3JYT7X9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const canvas = document.getElementById('whiteboardCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let currentColor = '#22D3EE';
+    let currentSize = 5;
+    let isEraser = false;
+    let lastX = 0, lastY = 0;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      // keep internal resolution matching display size
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }
+
+    // Initial resize
+    function initSize() {
+      const wrapper = canvas.parentElement;
+      canvas.style.width = '100%';
+      canvas.style.height = window.innerWidth < 767 ? '400px' : '600px';
+      resizeCanvas();
+    }
+    initSize();
+    window.addEventListener('resize', initSize);
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches ? e.touches[0] : e;
+      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    }
+
+    function startDraw(e) {
+      drawing = true;
+      const pos = getPos(e);
+      lastX = pos.x; lastY = pos.y;
+      e.preventDefault();
+    }
+    function draw(e) {
+      if (!drawing) return;
+      const pos = getPos(e);
+      ctx.strokeStyle = isEraser ? '#0A0E17' : currentColor;
+      const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-main').trim() || '#0A0E17';
+      if (isEraser) ctx.strokeStyle = bg;
+      ctx.lineWidth = currentSize;
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      // sync to Firestore as stroke segments
+      addDoc(collection(db, 'strokes'), {
+        x0: lastX, y0: lastY, x1: pos.x, y1: pos.y,
+        color: ctx.strokeStyle, size: currentSize,
+        ts: serverTimestamp()
+      }).catch(()=>{});
+      lastX = pos.x; lastY = pos.y;
+      e.preventDefault();
+    }
+    function stopDraw(){ drawing=false; }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
+    canvas.addEventListener('touchstart', startDraw, {passive:false});
+    canvas.addEventListener('touchmove', draw, {passive:false});
+    canvas.addEventListener('touchend', stopDraw);
+
+    // Realtime sync: draw remote strokes
+    const q = query(collection(db, 'strokes'), orderBy('ts'));
+    onSnapshot(q, (snap) => {
+      snap.docChanges().forEach(ch => {
+        if (ch.type === 'added') {
+          const d = ch.doc.data();
+          // skip if it's our own immediate draw already rendered? we still draw to keep consistency
+          ctx.strokeStyle = d.color;
+          ctx.lineWidth = d.size;
+          ctx.beginPath();
+          ctx.moveTo(d.x0, d.y0);
+          ctx.lineTo(d.x1, d.y1);
+          ctx.stroke();
+        }
+      });
+    });
+
+    // Toolbar
+    document.querySelectorAll('.color-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        currentColor = btn.dataset.color;
+        isEraser = false;
+      });
+    });
+    document.querySelectorAll('.size-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.size-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSize = parseInt(btn.dataset.size,10);
+      });
+    });
+    document.getElementById('eraserBtn').addEventListener('click', ()=>{
+      isEraser = !isEraser;
+      document.getElementById('eraserBtn').classList.toggle('active', isEraser);
+    });
+    document.getElementById('clearBtn').addEventListener('click', async ()=>{
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      const snap = await getDocs(collection(db, 'strokes'));
+      snap.forEach(d=> deleteDoc(doc(db,'strokes', d.id)));
+    });
+    document.getElementById('saveBtn').addEventListener('click', ()=>{
+      const link = document.createElement('a');
+      link.download = 'whiteboard.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Online users via presence collection
+    const uid = Math.random().toString(36).slice(2);
+    const presenceRef = doc(collection(db, 'presence'), uid);
+    setDoc(presenceRef, { ts: serverTimestamp() });
+    setInterval(()=> setDoc(presenceRef, { ts: serverTimestamp() }, {merge:true}), 15000);
+    window.addEventListener('beforeunload', ()=> deleteDoc(presenceRef));
+    onSnapshot(collection(db,'presence'), (snap)=>{
+      // Текст больше не меняется, только число
+      const el = document.getElementById('usersCount') || document.getElementById('onlineCount');
+      if (el) el.textContent = snap.size || 1;
+    });
+  </script>
+</body>
+</html>
